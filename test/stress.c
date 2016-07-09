@@ -31,7 +31,7 @@ Test(queue, stress, .timeout = 3)
 {
     pll_queue queue = pll_queue_init();
 
-    int rc;
+    int rc = 0;
     pthread_t threads[NB_THREADS];
 
     size_t i = 0;
