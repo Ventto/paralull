@@ -11,7 +11,7 @@ struct queue_enqreq {
 };
 
 struct queue_deqreq {
-	uint64_t id : 64;
+	uint64_t id;
 	struct { int pending : 1; uint64_t id : 63; } state;
 };
 
@@ -22,15 +22,15 @@ struct queue_cell {
 };
 
 struct queue_segment {
-	uint64_t id : 64;
+	uint64_t id;
 	struct queue_segment *next;
 	struct queue_cell cells[CELLS_NUMBER];
 };
 
 struct pll_queue {
 	struct queue_segment *q;
-	uint64_t tail : 64;
-	uint64_t head : 64;
+	uint64_t tail;
+	uint64_t head;
 };
 
 struct queue_handle {
