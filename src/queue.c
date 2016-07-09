@@ -2,8 +2,6 @@
 #include <stdlib.h>
 #include <pthread.h>
 
-#include <tizzy.h>
-
 #include "atomic.h"
 #include "paralull.h"
 #include "queue.h"
