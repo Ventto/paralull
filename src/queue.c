@@ -93,6 +93,18 @@ err:
 
 void pll_queue_term(pll_queue q)
 {
+	for (struct queue_handle *h = q->hndl_ring->next; h != q->hndl_ring; ) {
+		struct queue_handle *next = h->next;
+		free(h);
+		h = next;
+	}
+	free(q->hndl_ring);
+	for (struct queue_segment *s = q->q; s; ) {
+		struct queue_segment *next = s->next;
+		free(s);
+		s = next;
+	}
+	free(q);
 }
 
 static struct queue_handle *get_handle()
