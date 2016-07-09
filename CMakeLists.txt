@@ -16,6 +16,5 @@ include (Subprojects)
 add_library (paralull SHARED ${SOURCE_FILES})
 target_link_libraries (paralull pthread)
 
-set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS_DEFAULT}")
 enable_testing()
 add_subdirectory(test)
