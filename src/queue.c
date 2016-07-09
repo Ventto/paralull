@@ -209,6 +209,60 @@ void pll_enqueue(pll_queue q, void *val)
 	enq_slow(q, val, cell_id);
 }
 
+static void *help_enq(pll_queue q, struct queue_cell *cell, uint64_t i)
+{
+	if (!pll_cas(&cell->val, QUEUE_BOTTOM, QUEUE_TOP)
+			&& cell->val != (void *)QUEUE_TOP)
+		return cell->val;
+
+	struct queue_handle *h = NULL;
+	struct queue_handle *peer = NULL;
+	struct queue_enqreq *req = NULL;
+	union queue_reqstate state;
+
+	if (cell->enq == (void *)ENQUEUE_BOTTOM) {
+		do {
+			h = get_handle();
+			peer = h->enq.peer;
+			req = &peer->enq.req;
+			state = req->state;
+
+			if (h->enq.req.state.s.id == 0
+					|| h->enq.req.state.s.id == state.s.id)
+				break;
+
+			h->enq.req.state.s.id = 0;
+			h->enq.peer = peer->next;
+		} while (1);
+
+		if (state.s.pending && state.s.id <= i
+				&& !pll_cas(&cell->enq, ENQUEUE_BOTTOM, req))
+			h->enq.req.state.s.id = state.s.id;
+		else
+			h->enq.peer = peer->next;
+
+		if (cell->enq == (void *)ENQUEUE_BOTTOM)
+			pll_cas(&cell->enq, QUEUE_EMPTY, QUEUE_TOP);
+	}
+
+	if (cell->enq == (void *)ENQUEUE_TOP)
+		return (q->tail <= i ? (void *)QUEUE_EMPTY : (void *)QUEUE_TOP);
+
+	req = cell->enq;
+	state = req->state;
+
+	void *val = req->val;
+	union queue_reqstate s_val = { .s.pending = 0, .s.id = i };
+
+	if (state.s.id > i)
+		if (cell->val == (void *)QUEUE_TOP && q->tail <= i)
+			return (void *)QUEUE_EMPTY;
+		else if (try_to_claim_req(&req->state.u64, state.s.id, i)
+				|| (state.u64 == s_val.u64 && cell->val == (void *)QUEUE_TOP))
+			enq_commit(q, cell, val, i);
+	return cell->val;
+}
+
 void *pll_dequeue(pll_queue q)
 {
 	return NULL;
