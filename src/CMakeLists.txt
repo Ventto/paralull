@@ -1,0 +1,5 @@
+set (SOURCE_FILES
+    queue.h
+)
+
+set (SOURCE_FILES ${SOURCE_FILES} PARENT_SCOPE)
