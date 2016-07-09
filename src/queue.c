@@ -10,6 +10,14 @@
 
 #define PATIENCE	42
 
+#define DEQUEUE_TOP		-1
+#define DEQUEUE_BOTTOM	-2
+#define ENQUEUE_TOP		-3
+#define ENQUEUE_BOTTOM	-4
+#define QUEUE_TOP		-5
+#define QUEUE_BOTTOM	-6
+#define QUEUE_EMPTY		-7
+
 static struct queue_segment *new_segment(uint64_t id)
 {
 	struct queue_segment *seg = malloc(sizeof(struct queue_segment));
