@@ -2,10 +2,27 @@ cmake_minimum_required (VERSION 2.8)
 
 project (Paralull C)
 
+set (MODULE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/.cmake/Modules")
+set (CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${MODULE_DIR})
+
+set (CMAKE_C_FLAGS_DEFAULT "${CMAKE_C_FLAGS}")
+set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=c99 -Wall -Wextra -pedantic -pthread")
+
 include_directories(include src)
 add_subdirectory (src)
 
-add_library (paralull SHARED ${SOURCE_FILES})
+include (Subprojects)
 
+pll_add_subproject(tizzy
+    GIT https://github.com/Snaipe/Tizzy.git
+    OPTS -DTZY_SAMPLES=OFF
+    CMAKE)
+
+add_library (paralull SHARED ${SOURCE_FILES})
+target_link_libraries (paralull pthread)
+
+pll_link_subproject(paralull tizzy STATIC)
+
+set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS_DEFAULT}")
 enable_testing()
 add_subdirectory(test)

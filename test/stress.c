@@ -1,5 +1,6 @@
 #include <criterion/criterion.h>
 #include <paralull.h>
+#include <pthread.h>
 
 #define NB_THREADS 10
 #define NB_ITEMS 1000
@@ -35,9 +36,9 @@ Test(queue, stress, .timeout = 3)
 
     size_t i = 0;
     for (; i < NB_THREADS / 2; ++i)
-        rc |= pthread_create(&threads[i], NULL, worker_end, NULL, queue);
+        rc |= pthread_create(&threads[i], NULL, worker_enq, queue);
     for (; i < NB_THREADS; ++i)
-        rc |= pthread_create(&threads[i], NULL, worker_deq, NULL, queue);
+        rc |= pthread_create(&threads[i], NULL, worker_deq, queue);
 
     cr_assert(!rc, "Could not create worker threads");
 
@@ -53,9 +54,5 @@ Test(queue, stress, .timeout = 3)
     cr_assert(empty, "Result set is non-empty");
     cr_assert(pll_queue_empty(queue), "Resulting queue is not empty");
 
-    for (size_t i = 0; i < NB_THREADS; ++i)
-        pthread_destroy(threads[i], NULL, worker, NULL, (void*)i);
-
     pll_queue_term(queue);
-    return 0;
 }

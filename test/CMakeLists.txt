@@ -10,4 +10,4 @@ set(TEST_SOURCES
 
 add_executable(paralull_unit_tests ${TEST_SOURCES})
 target_link_libraries(paralull_unit_tests criterion paralull)
-add_test(parallul_unit_tests parallul_unit_tests)
+add_test(paralull_unit_tests paralull_unit_tests)
