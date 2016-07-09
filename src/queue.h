@@ -31,6 +31,8 @@ struct pll_queue {
 	struct queue_segment *q;
 	uint64_t tail;
 	uint64_t head;
+	struct queue_handle *hndl_ring;
+	pthread_key_t hndlk;
 };
 
 struct queue_handle {
