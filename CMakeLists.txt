@@ -13,15 +13,8 @@ add_subdirectory (src)
 
 include (Subprojects)
 
-pll_add_subproject(tizzy
-    GIT https://github.com/Snaipe/Tizzy.git
-    OPTS -DTZY_SAMPLES=OFF
-    CMAKE)
-
 add_library (paralull SHARED ${SOURCE_FILES})
 target_link_libraries (paralull pthread)
-
-pll_link_subproject(paralull tizzy STATIC)
 
 set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS_DEFAULT}")
 enable_testing()
