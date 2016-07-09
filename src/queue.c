@@ -23,6 +23,7 @@ static struct queue_segment *new_segment(uint64_t id)
 			.deq = NULL
 		};
 	}
+	return seg;
 }
 
 static int handle_init(struct pll_queue *q)
