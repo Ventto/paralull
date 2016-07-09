@@ -1,6 +1,8 @@
 #ifndef PARALULL_H_
 # define PARALULL_H_
 
+# include <stdbool.h>
+
 struct pll_queue;
 typedef struct pll_queue *pll_queue;
 
