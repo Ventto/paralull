@@ -1,4 +1,5 @@
 set (SOURCE_FILES
+    src/atomic.h
     src/queue.h
 )
 
