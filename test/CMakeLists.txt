@@ -1,5 +1,7 @@
 include_directories(../include ../src)
 
+add_subdirectory(criterion)
+
 set(TEST_SOURCES
     stress.c
     queue.c
