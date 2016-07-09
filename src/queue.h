@@ -5,14 +5,23 @@
 
 #define CELLS_NUMBER	1024
 
+
+union queue_reqstate {
+	uint64_t u64;
+	struct {
+		uint8_t pending	: 1;
+		uint64_t id		: 63;
+	} s;
+};
+
 struct queue_enqreq {
 	void *val;
-	struct { int pending : 1; uint64_t id : 63; } state;
+	union queue_reqstate state;
 };
 
 struct queue_deqreq {
 	uint64_t id;
-	struct { int pending : 1; uint64_t id : 63; } state;
+	union queue_reqstate state;
 };
 
 struct queue_cell {
@@ -35,11 +44,21 @@ struct pll_queue {
 	pthread_key_t hndlk;
 };
 
+struct queue_enqueue {
+	struct queue_enqreq req;
+	struct queue_handle *peer;
+};
+
+struct queue_dequeue {
+	struct queue_deqreq req;
+	struct queue_handle *peer;
+};
+
 struct queue_handle {
 	struct queue_segment *tail, *head;
 	struct queue_handle *next;
-	struct { struct queue_enqreq *req; struct queue_handle *peer; } enq;
-	struct { struct queue_deqreq *req; struct queue_handle *peer; } deq;
+	struct queue_enqueue enq;
+	struct queue_dequeue deq;
 };
 
 #endif /* _PLL_QUEUE_H */

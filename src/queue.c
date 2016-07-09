@@ -1,12 +1,16 @@
 #include <errno.h>
 #include <stdlib.h>
 #include <pthread.h>
+#include <stdint.h>
 
 #include "atomic.h"
 #include "paralull.h"
 #include "queue.h"
+#include "atomic.h"
 
-static struct queue_segment *new_segment(int id)
+#define PATIENCE	42
+
+static struct queue_segment *new_segment(uint64_t id)
 {
 	struct queue_segment *seg = malloc(sizeof(struct queue_segment));
 
@@ -90,8 +94,98 @@ void pll_queue_term(pll_queue q)
 {
 }
 
+static struct queue_handle *get_handle()
+{
+	return NULL;
+}
+
+static void advance_end_for_linearizability(uint64_t *E, uint64_t cell_id)
+{
+	uint64_t e = *E;
+	do e = *E; while (e < cell_id && !pll_cas(E, e, cell_id));
+}
+
+static void enq_commit(pll_queue q,
+						struct queue_cell *cell,
+						void *val,
+						uint64_t cell_id)
+{
+	advance_end_for_linearizability(&q->tail, cell_id + 1);
+	cell->val = val;
+}
+
+static void *find_cell(struct queue_segment **sp, uint64_t cell_id)
+{
+	struct queue_segment *seg = *sp;
+	struct queue_segment *next;
+
+	for (uint64_t i = seg->id; i < cell_id / CELLS_NUMBER; ++i) {
+		next = seg->next;
+		if (next == NULL) {
+			struct queue_segment *tmp = new_segment(i + 1);
+
+			if (!pll_cas(&seg->next, NULL, tmp))
+				free(tmp);
+			next = seg->next;
+		}
+		seg = next;
+	}
+	*sp = seg;
+	return &seg->cells[cell_id % CELLS_NUMBER];
+}
+
+static bool try_to_claim_req(uint64_t *state, uint64_t id, uint64_t cell_id)
+{
+	union queue_reqstate s_val1 = { .s.pending = 1, .s.id = id };
+	union queue_reqstate s_val2 = { .s.pending = 0, .s.id = cell_id };
+
+	return pll_cas(state, s_val1.u64, s_val2.u64);
+}
+
+static void enq_slow(pll_queue q, void *val, uint64_t cell_id)
+{
+	struct queue_segment *tmp_tail = get_handle()->tail;
+	struct queue_enqreq *req = &get_handle()->enq.req;
+
+	req->val = val;
+	req->state = (union queue_reqstate) { .s.pending = 1, .s.id = cell_id };
+
+	do {
+		uint64_t i = pll_faa(&q->tail, 1);
+		struct queue_cell *cell = find_cell(&tmp_tail, i);
+
+		if (pll_cas(&cell->enq, NULL, req) && cell->val == NULL) {
+			try_to_claim_req(&req->state.u64, cell_id, i);
+			break;
+		}
+	} while (req->state.s.pending);
+
+	uint64_t id = req->state.s.id;
+	struct queue_cell *cell = find_cell(&get_handle()->tail, id);
+
+	enq_commit(q, cell, val, id);
+}
+
+static inline bool enq_fast(pll_queue q, void *val, uint64_t *cell_id)
+{
+	uint64_t i = pll_faa(&q->tail, 1);
+	struct queue_cell *cell = find_cell(&get_handle()->tail, i);
+
+	if (pll_cas(&cell->val, NULL, val))
+		return true;
+
+	*cell_id = i;
+	return false;
+}
+
 void pll_enqueue(pll_queue q, void *val)
 {
+	uint64_t cell_id;
+
+	for (int p = PATIENCE; p >= 0; --p)
+		if (enq_fast(q, val, &cell_id))
+			return;
+	enq_slow(q, val, cell_id);
 }
 
 void *pll_dequeue(pll_queue q)
@@ -103,4 +197,3 @@ bool pll_queue_empty(pll_queue q)
 {
 	return 0;
 }
-
