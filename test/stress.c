@@ -15,6 +15,7 @@ static void *worker_enq(void *ctx)
         pll_enqueue(queue, (void *) i);
         __sync_fetch_and_add(&marks[i], 1);
     }
+    return NULL;
 }
 
 static void *worker_deq(void *ctx)
@@ -25,6 +26,7 @@ static void *worker_deq(void *ctx)
         size_t val = (size_t) pll_dequeue(queue);
         __sync_fetch_and_sub(&marks[val], 1);
     }
+    return NULL;
 }
 
 Test(queue, stress, .timeout = 3)

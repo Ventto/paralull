@@ -22,16 +22,13 @@
 
 static struct queue_segment *new_segment(uint64_t id)
 {
-	struct queue_segment *seg = malloc(sizeof(struct queue_segment));
+	struct queue_segment *seg = calloc(1, sizeof(struct queue_segment));
 
-	seg->id = id;
-	seg->next = NULL;
-	for (int i = 0; i < CELLS_NUMBER; ++i) {
-		seg->cells[i] = (struct queue_cell) {
-			.val = QUEUE_BOTTOM,
-			.enq = ENQUEUE_BOTTOM,
-			.deq = DEQUEUE_BOTTOM
-		};
+	pll_aset(seg->id, id);
+	for (size_t i = 0; i < CELLS_NUMBER; ++i) {
+		pll_aset(seg->cells[i].val, QUEUE_BOTTOM);
+		pll_aset(seg->cells[i].enq, ENQUEUE_BOTTOM);
+		pll_aset(seg->cells[i].deq, DEQUEUE_BOTTOM);
 	}
 	return seg;
 }
@@ -117,6 +114,7 @@ void pll_queue_term(pll_queue q)
 		free(s);
 		s = next;
 	}
+	pthread_key_delete(q->hndlk);
 	free(q);
 }
 
@@ -140,7 +138,7 @@ static void enq_commit(pll_queue q, struct queue_cell *cell, void *val,
                        uint64_t cell_id)
 {
 	advance_end_for_linearizability(&q->tail, cell_id + 1);
-	cell->val = val;
+	pll_aset(cell->val, val);
 }
 
 static void *find_cell(struct queue_segment **sp, uint64_t cell_id)
@@ -167,7 +165,7 @@ static void *find_cell(struct queue_segment **sp, uint64_t cell_id)
 		seg = next;
 	}
 	/* Invariant: seg is the target segment (cell_id/CELL_NUMBER) */
-	*sp = seg;
+	pll_aset(*sp, seg);
 	/* Return the target segment */
 	return &seg->cells[cell_id % CELLS_NUMBER];
 }
@@ -233,13 +231,13 @@ void pll_enqueue(pll_queue q, void *val)
 	uint64_t cell_id;
 	struct queue_handle *h = get_handle(q);
 
-	h->hzdp = h->tail;
+	pll_aset(h->hzdp, h->tail);
 	for (int p = PATIENCE; p >= 0; --p)
 		if (enq_fast(q, h, val, &cell_id))
 			return;
 	/* Use id from last attempt */
 	enq_slow(q, h, val, cell_id);
-	h->hzdp = NULL;
+	pll_aset(h->hzdp, NULL);
 }
 
 static void verify(struct queue_segment **seg, struct queue_segment *hzdp)
@@ -293,12 +291,14 @@ static void cleanup(pll_queue q, struct queue_handle *h)
 	}
 	while (e->id > i && j > 0)
 		verify(&e, hds[--j]->hzdp);
+	free(hds);
+
 	if (e->id <= i) {
-		q->q = s;
+		pll_aset(q->q, s);
 		return;
 	}
-	q->q = e;
-	q->oldseg = e->id;
+	pll_aset(q->q, e);
+	pll_aset(q->oldseg, e->id);
 
 	// TODO: Check for correctness
 #if 0
@@ -326,7 +326,6 @@ static void *help_enq(pll_queue q, struct queue_handle *h,
 	if (cell->enq == ENQUEUE_BOTTOM) {
 		do {
 			/* Two iterations at most */
-			h = get_handle(q);
 			peer = h->enq.peer;
 			req = &peer->enq.req;
 			state = req->state;
@@ -337,8 +336,10 @@ static void *help_enq(pll_queue q, struct queue_handle *h,
 				break;
 
 			/* Peer request completed, move to next peer */
-			h->enq.req.state.s.id = 0;
-			h->enq.peer = peer->next;
+			union queue_reqstate newstate = h->enq.req.state;
+			newstate.s.id = 0;
+			pll_aset(h->enq.req.state.u64, newstate.u64);
+			pll_aset(h->enq.peer, peer->next);
 		} while (1);
 
 		/*
@@ -346,12 +347,15 @@ static void *help_enq(pll_queue q, struct queue_handle *h,
 		 * try to reserve cell by noting request in cell.
 		 */
 		if (state.s.pending && state.s.id <= i
-				&& !pll_cas(&cell->enq, ENQUEUE_BOTTOM, req))
+				&& !pll_cas(&cell->enq, ENQUEUE_BOTTOM, req)) {
 			/* Failed to reserve cell for req, remember req id */
-			h->enq.req.state.s.id = state.s.id;
-		else
+			union queue_reqstate newstate = h->enq.req.state;
+			newstate.s.id = state.s.id;
+			pll_aset(h->enq.req.state.u64, newstate.u64);
+		} else {
 			/* Peer doesn't need help, I can't help, or I helped */
-			h->enq.peer = peer->next;
+			pll_aset(h->enq.peer, peer->next);
+		}
 
 		/*
 		 * If can't find a pending request, write ENQUEUE_TOP to prevent other
@@ -512,8 +516,10 @@ static void *deq_slow(pll_queue q, struct queue_handle *h, uint64_t cell_id)
 	struct queue_deqreq *req = &h->deq.req;
 
 	/* Publish dequeue request */
-	req->id = cell_id;
-	req->state = (union queue_reqstate) { .s.pending = 1, .s.id = cell_id };
+	pll_aset(req->id, cell_id);
+
+	union queue_reqstate state = { .s.pending = 1, .s.id = cell_id };
+	pll_aset(req->state.u64, state.u64);
 
 	help_deq(q, h, h);
 
@@ -530,7 +536,7 @@ static void *deq_slow(pll_queue q, struct queue_handle *h, uint64_t cell_id)
 void *pll_dequeue(pll_queue q)
 {
 	struct queue_handle *h = get_handle(q);
-	h->hzdp = h->head;
+	pll_aset(h->hzdp, h->head);
 
 	void *val = NULL;
 	uint64_t cell_id;
@@ -546,10 +552,10 @@ void *pll_dequeue(pll_queue q)
 
 	if (val != QUEUE_EMPTY) {
 		help_deq(q, h, h->deq.peer);
-		h->deq.peer = h->deq.peer->next;
+		pll_aset(h->deq.peer, h->deq.peer->next);
 	}
 
-	h->hzdp = NULL;
+	pll_aset(h->hzdp, NULL);
 	cleanup(q, h);
 	return val;
 }
