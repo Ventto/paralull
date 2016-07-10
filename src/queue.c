@@ -147,21 +147,30 @@ static void enq_commit(pll_queue q,
 
 static void *find_cell(struct queue_segment **sp, uint64_t cell_id)
 {
+	/* Invariant: sp points to a valid segment*/
 	struct queue_segment *seg = *sp;
 	struct queue_segment *next;
 
+	/* Traverse list to target segment with id and cell_id/CELL_NUMBER */
 	for (uint64_t i = seg->id; i < cell_id / CELLS_NUMBER; ++i) {
 		next = seg->next;
 		if (next == NULL) {
+			/*
+			 * The list needs another segment. Allocate one and try to extend
+			 * the list.
+			 */
 			struct queue_segment *tmp = new_segment(i + 1);
 
 			if (!pll_cas(&seg->next, NULL, tmp))
 				free(tmp);
+			/* Invariant: a successor segment exists. */
 			next = seg->next;
 		}
 		seg = next;
 	}
+	/* Invariant: seg is the target segment (cell_id/CELL_NUMBER) */
 	*sp = seg;
+	/* Return the target segment */
 	return &seg->cells[cell_id % CELLS_NUMBER];
 }
 
@@ -178,22 +187,31 @@ static void enq_slow(pll_queue q,
 						void *val,
 						uint64_t cell_id)
 {
-	struct queue_segment *tmp_tail = h->tail;
+	/* Publish enqueue request */
 	struct queue_enqreq *req = &h->enq.req;
+	/*
+	 * Use a local tail pointer to traverse because later we may need to find
+	 * an earlier cell.
+	 */
+	struct queue_segment *tmp_tail = h->tail;
 
 	req->val = val;
 	req->state = (union queue_reqstate) { .s.pending = 1, .s.id = cell_id };
 
 	do {
+		/* Obtain a new cell index and locate candidate cell */
 		uint64_t i = pll_faa(&q->tail, 1);
 		struct queue_cell *cell = find_cell(&tmp_tail, i);
 
-		if (pll_cas(&cell->enq, ENQUEUE_BOTTOM, req) && cell->val == QUEUE_BOTTOM) {
+		/* Dijkstra's protocol */
+		if (pll_cas(&cell->enq, ENQUEUE_BOTTOM, req)
+				&& cell->val == QUEUE_BOTTOM) {
 			try_to_claim_req(&req->state.u64, cell_id, i);
+			/* Invariant: request claimed (even if CAS failed) */
 			break;
 		}
 	} while (req->state.s.pending);
-
+	/* Invariant: req claimed for a cell and find that cell */
 	uint64_t id = req->state.s.id;
 	struct queue_cell *cell = find_cell(&h->tail, id);
 
@@ -205,6 +223,7 @@ static inline bool enq_fast(pll_queue q,
 								void *val,
 								uint64_t *cell_id)
 {
+	/* Obtain cell index and locate candidate cell */
 	uint64_t i = pll_faa(&q->tail, 1);
 	struct queue_cell *cell = find_cell(&h->tail, i);
 
@@ -224,6 +243,7 @@ void pll_enqueue(pll_queue q, void *val)
 	for (int p = PATIENCE; p >= 0; --p)
 		if (enq_fast(q, h, val, &cell_id))
 			return;
+	/* Use id from last attempt */
 	enq_slow(q, h, val, cell_id);
 	h->hzdp = NULL;
 }
@@ -305,38 +325,55 @@ static void *help_enq(pll_queue q,
 			&& cell->val != QUEUE_TOP)
 		return cell->val;
 
+	/* cell->val is QUEUE_TOP, so help slow-path enqueues */
 	struct queue_handle *peer = NULL;
 	struct queue_enqreq *req = NULL;
 	union queue_reqstate state;
 
 	if (cell->enq == ENQUEUE_BOTTOM) {
 		do {
+			/* Two iterations at most */
 			h = get_handle(q);
 			peer = h->enq.peer;
 			req = &peer->enq.req;
 			state = req->state;
 
+			/* Break if I haven't helped this peer complete */
 			if (h->enq.req.state.s.id == 0
 					|| h->enq.req.state.s.id == state.s.id)
 				break;
 
+			/* Peer request completed, move to next peer */
 			h->enq.req.state.s.id = 0;
 			h->enq.peer = peer->next;
 		} while (1);
 
+		/*
+		 * If peer enqueue is pending and can use this cell,
+		 * try to reserve cell by noting request in cell.
+		 */
 		if (state.s.pending && state.s.id <= i
 				&& !pll_cas(&cell->enq, ENQUEUE_BOTTOM, req))
+			/* Failed to reserve cell for req, remember req id */
 			h->enq.req.state.s.id = state.s.id;
 		else
+			/* Peer doesn't need help, I can't help, or I helped */
 			h->enq.peer = peer->next;
 
+		/*
+		 * If can't find a pending request, write ENQUEUE_TOP to prevent other
+		 * enq helpers from using 'cell'
+		 */
 		if (cell->enq == ENQUEUE_BOTTOM)
 			pll_cas(&cell->enq, ENQUEUE_BOTTOM, ENQUEUE_TOP);
 	}
 
+	/* Invariant: cell's enq is either a request or ENQUEUE_TOP */
 	if (cell->enq == ENQUEUE_TOP)
+		/* QUEUE_EMPTY if not enough enqueues linearized before i */
 		return (q->tail <= i ? QUEUE_EMPTY : QUEUE_TOP);
 
+	/* Invariant: cell's enq is a request */
 	req = cell->enq;
 	state = req->state;
 
@@ -344,18 +381,25 @@ static void *help_enq(pll_queue q,
 	union queue_reqstate s_val = { .s.pending = 0, .s.id = i };
 
 	if (state.s.id > i) {
+		/*
+		 * Request is unsuitable for this cell,
+		 * QUEUE_EMPTY if not enough enqueues linearized before i
+		 */
 		if (cell->val == QUEUE_TOP && q->tail <= i)
 			return QUEUE_EMPTY;
 	} else if (try_to_claim_req(&req->state.u64, state.s.id, i)
 				|| (state.u64 == s_val.u64 && cell->val == QUEUE_TOP)) {
+		/* Someone claimed this request; not committed */
 		enq_commit(q, cell, val, i);
 	}
 
+	/* cell->val is QUEUE_TOP or a value */
 	return cell->val;
 }
 
 static void *deq_fast(pll_queue q, struct queue_handle *h, uint64_t *cell_id)
 {
+	/* Obtain cell index and locate candidate cell */
 	uint64_t i = pll_faa(&q->head, 1);
 	struct queue_cell *cell = find_cell(&h->head, i);
 	void *val = help_enq(q, h, cell, i);
@@ -367,6 +411,7 @@ static void *deq_fast(pll_queue q, struct queue_handle *h, uint64_t *cell_id)
 	if (val != QUEUE_TOP && pll_cas(&cell->deq, DEQUEUE_BOTTOM, DEQUEUE_TOP))
 		return val;
 
+	/* Otherwise fail, returning cell id */
 	*cell_id = i;
 	return QUEUE_TOP;
 }
@@ -375,18 +420,22 @@ static void help_deq(pll_queue q,
 						struct queue_handle *h,
 						struct queue_handle *h_help)
 {
+	/* Inspect a dequeue request */
 	struct queue_deqreq *req = &h_help->deq.req;
 	union queue_reqstate state = req->state;
 	uint64_t id = req->id;
 
+	/* If this request doesn't need help, return */
 	if (!state.s.pending || state.s.id < id)
 		return;
 
+	/* head: a local segment pointer for announced cells */
 	struct queue_segment *head = h_help->head;
 
 	pll_barrier();
 	h->hzdp = head;
 
+	/* Must read after reading h_help->head */
 	state = req->state;
 
 	uint64_t prior = id;
@@ -396,16 +445,27 @@ static void help_deq(pll_queue q,
 	while (true) {
 		struct queue_cell *cell = NULL;
 
+		/*
+		 * Find a candidate cell, if I don't have one
+		 * loop breaks when either find a candidate
+		 * or a candidate is announced.
+		 * c_seg: a local segment pointer for candidate cells
+		 */
 		for (struct queue_segment *c_seg = head;
 				!cand && state.s.id == prior;) {
 			cell = find_cell(&c_seg, ++i);
 
 			void *val = help_enq(q, h, cell, i);
 
+			/*
+			 * It is a candidate if it help_enq return QUEUE_EMPTY,
+			 * or a value that is not claimed by dequeues.
+			 */
 			if (val == QUEUE_EMPTY
 					|| (val != QUEUE_TOP
 						&& cell->deq == DEQUEUE_BOTTOM))
 				cand = i;
+			/* Inspect request state again */
 			else
 				state = req->state;
 		}
@@ -413,27 +473,41 @@ static void help_deq(pll_queue q,
 		if (cand) {
 			union queue_reqstate prior_s = { .s.pending = 1, .s.id = prior };
 			union queue_reqstate cand_s = { .s.pending = 1, .s.id = cand };
-
+			/* Found a candidate cell, try to announce it */
 			pll_cas(&req->state.u64, prior_s.u64, cand_s.u64);
 			state = req->state;
 		}
 
+		/*
+		 * Invariant: some candidate announced in state.s.id
+		 * quit if request is complete
+		 */
 		if (!state.s.pending || req->id != id)
 			return;
 
+		/* Find the announced candidate */
 		cell = find_cell(&head, state.s.id);
 
+		/*
+		 * If candidate permits returning QUEUE_EMPTY (cell->val == QUEUE_TOP)
+		 * or this helper claimed the value for req with CAS
+		 * or another helper claimed the value for req.
+		 */
 		if (cell->val == QUEUE_TOP
 				|| pll_cas(&cell->deq, DEQUEUE_BOTTOM, req)
 				|| cell->deq == req) {
 			union queue_reqstate s = { .s.pending = 0, .s.id = id };
-
+			/* Request is complete, try to clear pending bit */
 			pll_cas(&req->state.u64, state.u64, s.u64);
+			/* Invariant: req is complete; req->state.s.pending = 0 */
 			return;
 		}
-
+		/* Prepare for next iteration */
 		prior = state.s.id;
-
+		/*
+		 * If annouced candidate is newer than visiited cell
+		 * abandon "cand" (if any); bump i
+		 */
 		if (state.s.id >= i) {
 			cand = 0;
 			i = state.s.id;
@@ -445,11 +519,13 @@ static void *deq_slow(pll_queue q, struct queue_handle *h, uint64_t cell_id)
 {
 	struct queue_deqreq *req = &h->deq.req;
 
+	/* Publish dequeue request */
 	req->id = cell_id;
 	req->state = (union queue_reqstate) { .s.pending = 1, .s.id = cell_id };
 
 	help_deq(q, h, h);
 
+	/* Find the destination cell & read its value */
 	uint64_t i = req->state.s.id;
 	struct queue_cell *cell = find_cell(&h->head, i);
 	void *val = cell->val;
