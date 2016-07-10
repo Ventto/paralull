@@ -360,6 +360,10 @@ static void *deq_fast(pll_queue q, struct queue_handle *h, uint64_t *cell_id)
 	struct queue_cell *cell = find_cell(&h->head, i);
 	void *val = help_enq(q, h, cell, i);
 
+	if (val == QUEUE_EMPTY)
+		return QUEUE_EMPTY;
+
+	/* The cell has a value and I claimed it */
 	if (val != QUEUE_TOP && pll_cas(&cell->deq, DEQUEUE_BOTTOM, DEQUEUE_TOP))
 		return val;
 
