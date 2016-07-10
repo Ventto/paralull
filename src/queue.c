@@ -9,15 +9,16 @@
 #include "queue.h"
 #include "atomic.h"
 
-#define PATIENCE	42
+#define PATIENCE    42
+#define MAX_GARBAGE 16
 
-#define DEQUEUE_TOP		((void *)-1)
-#define DEQUEUE_BOTTOM	((void *)-2)
-#define ENQUEUE_TOP		((void *)-3)
-#define ENQUEUE_BOTTOM	((void *)-4)
-#define QUEUE_TOP		((void *)-5)
-#define QUEUE_BOTTOM	((void *)-6)
-#define QUEUE_EMPTY		((void *)-7)
+#define DEQUEUE_TOP     ((void *)-1)
+#define DEQUEUE_BOTTOM  ((void *)-2)
+#define ENQUEUE_TOP     ((void *)-3)
+#define ENQUEUE_BOTTOM  ((void *)-4)
+#define QUEUE_TOP       ((void *)-5)
+#define QUEUE_BOTTOM    ((void *)-6)
+#define QUEUE_EMPTY     ((void *)-7)
 
 static struct queue_segment *new_segment(uint64_t id)
 {
@@ -210,10 +211,80 @@ void pll_enqueue(pll_queue q, void *val)
 	uint64_t cell_id;
 	struct queue_handle *h = get_handle(q);
 
+	h->hzdp = h->tail;
 	for (int p = PATIENCE; p >= 0; --p)
 		if (enq_fast(q, val, h, &cell_id))
 			return;
 	enq_slow(q, val, h, cell_id);
+	h->hzdp = NULL;
+}
+
+static void verify(struct queue_segment **seg, struct queue_segment *hzdp)
+{
+	if (hzdp && hzdp->id < (*seg)->id)
+		*seg = hzdp;
+}
+
+static void update(struct queue_segment **from, struct queue_segment **to,
+		struct queue_handle *h)
+{
+	struct queue_segment *n = *from;
+	if (n->id < (*to)->id) {
+		if (!pll_cas(from, n, *to)) {
+			n = *from;
+			if (n->id < (*to)->id)
+				*to = n;
+		}
+		verify(to, h->hzdp);
+	}
+}
+
+static void cleanup(pll_queue q, struct queue_handle *h)
+{
+	uint64_t i = q->oldseg;
+	struct queue_segment *e = h->head;
+
+	/* if cleaning is in progress, abort */
+	if (i == (uint64_t)-1)
+		return;
+	if (e->id - i < MAX_GARBAGE)
+		return;
+
+	/* try to claim cleaning state, abort otherwise */
+	if (!pll_cas(&q->oldseg, i, -1))
+		return;
+
+	struct queue_segment *s = q->q;
+
+	size_t numhds = 0;
+	for (struct queue_handle *p = h->next; p != h && e->id > i; p = p->next)
+		++numhds;
+
+	struct queue_handle **hds = malloc (sizeof (*hds) * numhds);
+	size_t j = 0;
+	for (struct queue_handle *p = h->next; p != h && e->id > i; p = p->next) {
+		verify(&e, p->hzdp);
+		update(&p->head, &e, p);
+		update(&p->tail, &e, p);
+		hds[j++] = p;
+	}
+	while (e->id > i && j > 0)
+		verify(&e, hds[--j]->hzdp);
+	if (e->id <= i) {
+		q->q = s;
+		return;
+	}
+	q->q = e;
+	q->oldseg = e->id;
+
+	// TODO: Check for correctness
+#if 0
+	for (struct queue_segment *seg = s; seg != e;) {
+		struct queue_segment *next = seg->next;
+		free(seg);
+		seg = next;
+	}
+#endif
 }
 
 static void *help_enq(pll_queue q,
@@ -300,6 +371,9 @@ static void help_deq(pll_queue q,
 
 	struct queue_segment *head = h_help->head;
 
+	pll_barrier();
+	h->hzdp = head;
+
 	state = req->state;
 
 	uint64_t prior = id;
@@ -375,6 +449,8 @@ static void *deq_slow(pll_queue q, struct queue_handle *h, uint64_t cell_id)
 void *pll_dequeue(pll_queue q)
 {
 	struct queue_handle *h = get_handle(q);
+	h->hzdp = h->head;
+
 	void *val = NULL;
 	uint64_t cell_id;
 
@@ -391,6 +467,8 @@ void *pll_dequeue(pll_queue q)
 		h->deq.peer = h->deq.peer->next;
 	}
 
+	h->hzdp = NULL;
+	cleanup(q, h);
 	return val;
 }
 
