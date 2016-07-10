@@ -11,13 +11,13 @@
 
 #define PATIENCE	42
 
-#define DEQUEUE_TOP		(void *)-1
-#define DEQUEUE_BOTTOM	(void *)-2
-#define ENQUEUE_TOP		(void *)-3
-#define ENQUEUE_BOTTOM	(void *)-4
-#define QUEUE_TOP		(void *)-5
-#define QUEUE_BOTTOM	(void *)-6
-#define QUEUE_EMPTY		(void *)-7
+#define DEQUEUE_TOP		((void *)-1)
+#define DEQUEUE_BOTTOM	((void *)-2)
+#define ENQUEUE_TOP		((void *)-3)
+#define ENQUEUE_BOTTOM	((void *)-4)
+#define QUEUE_TOP		((void *)-5)
+#define QUEUE_BOTTOM	((void *)-6)
+#define QUEUE_EMPTY		((void *)-7)
 
 static struct queue_segment *new_segment(uint64_t id)
 {
