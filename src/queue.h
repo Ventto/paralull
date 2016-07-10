@@ -3,7 +3,7 @@
 
 #include <stdint.h>
 
-#define CELLS_NUMBER	1024
+#define CELLS_NUMBER	4096
 
 
 union queue_reqstate {

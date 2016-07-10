@@ -9,8 +9,8 @@
 #include "queue.h"
 #include "atomic.h"
 
-#define PATIENCE    42
-#define MAX_GARBAGE 16
+#define PATIENCE    10
+#define MAX_GARBAGE 8
 
 #define DEQUEUE_TOP     ((void *)-1)
 #define DEQUEUE_BOTTOM  ((void *)-2)
@@ -277,16 +277,22 @@ static void cleanup(pll_queue q, struct queue_handle *h)
 
 	struct queue_segment *s = q->q;
 
-	size_t numhds = 0;
-	for (struct queue_handle *p = h->next; p != h && e->id > i; p = p->next)
-		++numhds;
+	size_t numhds = 1024;
+	struct queue_handle **hds = malloc(sizeof (*hds) * numhds);
+	if (!hds)
+		abort();
 
-	struct queue_handle **hds = malloc (sizeof (*hds) * numhds);
 	size_t j = 0;
 	for (struct queue_handle *p = h->next; p != h && e->id > i; p = p->next) {
 		verify(&e, p->hzdp);
 		update(&p->head, &e, p);
 		update(&p->tail, &e, p);
+		if (j >= numhds) {
+			numhds *= 2;
+			hds = realloc(hds, sizeof (*hds) * numhds);
+			if (!hds)
+				abort();
+		}
 		hds[j++] = p;
 	}
 	while (e->id > i && j > 0)
