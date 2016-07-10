@@ -28,9 +28,9 @@ static struct queue_segment *new_segment(uint64_t id)
 	seg->next = NULL;
 	for (int i = 0; i < CELLS_NUMBER; ++i) {
 		seg->cells[i] = (struct queue_cell) {
-			.val = NULL,
-			.enq = NULL,
-			.deq = NULL
+			.val = QUEUE_BOTTOM,
+			.enq = ENQUEUE_BOTTOM,
+			.deq = DEQUEUE_BOTTOM
 		};
 	}
 	return seg;
@@ -44,8 +44,10 @@ static int handle_init(struct pll_queue *q)
 
 	*h = (struct queue_handle) {
 		.tail = q->q,
-	.head = q->q,
+		.head = q->q,
 		.next = h,
+		.enq = { .peer = h },
+		.deq = { .peer = h },
 	};
 
 	if (pthread_setspecific(q->hndlk, h))
@@ -179,7 +181,7 @@ static void enq_slow(pll_queue q,
 		uint64_t i = pll_faa(&q->tail, 1);
 		struct queue_cell *cell = find_cell(&tmp_tail, i);
 
-		if (pll_cas(&cell->enq, NULL, req) && cell->val == NULL) {
+		if (pll_cas(&cell->enq, ENQUEUE_BOTTOM, req) && cell->val == QUEUE_BOTTOM) {
 			try_to_claim_req(&req->state.u64, cell_id, i);
 			break;
 		}
@@ -199,7 +201,7 @@ static inline bool enq_fast(pll_queue q,
 	uint64_t i = pll_faa(&q->tail, 1);
 	struct queue_cell *cell = find_cell(&h->tail, i);
 
-	if (pll_cas(&cell->val, NULL, val))
+	if (pll_cas(&cell->val, QUEUE_BOTTOM, val))
 		return true;
 
 	*cell_id = i;
@@ -391,7 +393,7 @@ static void help_deq(pll_queue q,
 
 			if (val == QUEUE_EMPTY
 					|| (val != QUEUE_TOP
-						&& cell->deq == ENQUEUE_BOTTOM))
+						&& cell->deq == DEQUEUE_BOTTOM))
 				cand = i;
 			else
 				state = req->state;
