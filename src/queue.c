@@ -462,7 +462,8 @@ void *pll_dequeue(pll_queue q)
 
 	if (val == QUEUE_TOP)
 		val = deq_slow(q, h, cell_id);
-	else if (val != QUEUE_EMPTY) {
+
+	if (val != QUEUE_EMPTY) {
 		help_deq(q, h, h->deq.peer);
 		h->deq.peer = h->deq.peer->next;
 	}
