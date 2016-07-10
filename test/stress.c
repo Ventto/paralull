@@ -2,9 +2,10 @@
 #include <paralull.h>
 #include <pthread.h>
 
-#define NB_THREADS 10
-#define NB_ITEMS 1000
+#define NB_THREADS 100
+#define NB_ITEMS 100000
 
+static size_t counter;
 static char marks[NB_ITEMS];
 
 static void *worker_enq(void *ctx)
@@ -14,6 +15,7 @@ static void *worker_enq(void *ctx)
     for (size_t i = 0; i < NB_ITEMS; ++i) {
         pll_enqueue(queue, (void *) i);
         __sync_fetch_and_add(&marks[i], 1);
+        __sync_fetch_and_add(&counter, 1);
     }
     return NULL;
 }
@@ -23,8 +25,17 @@ static void *worker_deq(void *ctx)
     pll_queue queue = ctx;
 
     for (size_t i = 0; i < NB_ITEMS; ++i) {
-        size_t val = (size_t) pll_dequeue(queue);
-        __sync_fetch_and_sub(&marks[val], 1);
+        for (;;) {
+            size_t c = counter;
+            if (c == 0)
+                continue;
+            if (!__sync_bool_compare_and_swap(&counter, c, c - 1))
+                continue;
+
+            size_t val = (size_t) pll_dequeue(queue);
+            __sync_fetch_and_sub(&marks[val], 1);
+            break;
+        }
     }
     return NULL;
 }
