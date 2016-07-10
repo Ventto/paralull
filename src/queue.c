@@ -270,5 +270,5 @@ void *pll_dequeue(pll_queue q)
 
 bool pll_queue_empty(pll_queue q)
 {
-	return 0;
+	return q->head == q->tail;
 }
