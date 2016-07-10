@@ -136,10 +136,8 @@ static void advance_end_for_linearizability(uint64_t *E, uint64_t cell_id)
 	do e = *E; while (e < cell_id && !pll_cas(E, e, cell_id));
 }
 
-static void enq_commit(pll_queue q,
-						struct queue_cell *cell,
-						void *val,
-						uint64_t cell_id)
+static void enq_commit(pll_queue q, struct queue_cell *cell, void *val,
+                       uint64_t cell_id)
 {
 	advance_end_for_linearizability(&q->tail, cell_id + 1);
 	cell->val = val;
@@ -182,10 +180,8 @@ static bool try_to_claim_req(uint64_t *state, uint64_t id, uint64_t cell_id)
 	return pll_cas(state, s_val1.u64, s_val2.u64);
 }
 
-static void enq_slow(pll_queue q,
-						struct queue_handle *h,
-						void *val,
-						uint64_t cell_id)
+static void enq_slow(pll_queue q, struct queue_handle *h, void *val,
+                     uint64_t cell_id)
 {
 	/* Publish enqueue request */
 	struct queue_enqreq *req = &h->enq.req;
@@ -218,10 +214,8 @@ static void enq_slow(pll_queue q,
 	enq_commit(q, cell, val, id);
 }
 
-static inline bool enq_fast(pll_queue q,
-								struct queue_handle *h,
-								void *val,
-								uint64_t *cell_id)
+static inline bool enq_fast(pll_queue q, struct queue_handle *h, void *val,
+		                    uint64_t *cell_id)
 {
 	/* Obtain cell index and locate candidate cell */
 	uint64_t i = pll_faa(&q->tail, 1);
@@ -255,7 +249,7 @@ static void verify(struct queue_segment **seg, struct queue_segment *hzdp)
 }
 
 static void update(struct queue_segment **from, struct queue_segment **to,
-		struct queue_handle *h)
+                   struct queue_handle *h)
 {
 	struct queue_segment *n = *from;
 	if (n->id < (*to)->id) {
@@ -316,10 +310,9 @@ static void cleanup(pll_queue q, struct queue_handle *h)
 #endif
 }
 
-static void *help_enq(pll_queue q,
-						struct queue_handle *h,
-						struct queue_cell *cell,
-						uint64_t i)
+static void *help_enq(pll_queue q, struct queue_handle *h,
+                      struct queue_cell *cell,
+                      uint64_t i)
 {
 	if (!pll_cas(&cell->val, QUEUE_BOTTOM, QUEUE_TOP)
 			&& cell->val != QUEUE_TOP)
@@ -416,9 +409,8 @@ static void *deq_fast(pll_queue q, struct queue_handle *h, uint64_t *cell_id)
 	return QUEUE_TOP;
 }
 
-static void help_deq(pll_queue q,
-						struct queue_handle *h,
-						struct queue_handle *h_help)
+static void help_deq(pll_queue q, struct queue_handle *h,
+                     struct queue_handle *h_help)
 {
 	/* Inspect a dequeue request */
 	struct queue_deqreq *req = &h_help->deq.req;
