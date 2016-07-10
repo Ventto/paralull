@@ -10,13 +10,13 @@
 
 #define PATIENCE	42
 
-#define DEQUEUE_TOP		-1
-#define DEQUEUE_BOTTOM	-2
-#define ENQUEUE_TOP		-3
-#define ENQUEUE_BOTTOM	-4
-#define QUEUE_TOP		-5
-#define QUEUE_BOTTOM	-6
-#define QUEUE_EMPTY		-7
+#define DEQUEUE_TOP		(void *)-1
+#define DEQUEUE_BOTTOM	(void *)-2
+#define ENQUEUE_TOP		(void *)-3
+#define ENQUEUE_BOTTOM	(void *)-4
+#define QUEUE_TOP		(void *)-5
+#define QUEUE_BOTTOM	(void *)-6
+#define QUEUE_EMPTY		(void *)-7
 
 static struct queue_segment *new_segment(uint64_t id)
 {
@@ -215,14 +215,14 @@ static void *help_enq(pll_queue q,
 						uint64_t i)
 {
 	if (!pll_cas(&cell->val, QUEUE_BOTTOM, QUEUE_TOP)
-			&& cell->val != (void *)QUEUE_TOP)
+			&& cell->val != QUEUE_TOP)
 		return cell->val;
 
 	struct queue_handle *peer = NULL;
 	struct queue_enqreq *req = NULL;
 	union queue_reqstate state;
 
-	if (cell->enq == (void *)ENQUEUE_BOTTOM) {
+	if (cell->enq == ENQUEUE_BOTTOM) {
 		do {
 			h = get_handle(q);
 			peer = h->enq.peer;
@@ -243,12 +243,12 @@ static void *help_enq(pll_queue q,
 		else
 			h->enq.peer = peer->next;
 
-		if (cell->enq == (void *)ENQUEUE_BOTTOM)
+		if (cell->enq == ENQUEUE_BOTTOM)
 			pll_cas(&cell->enq, QUEUE_BOTTOM, QUEUE_TOP);
 	}
 
-	if (cell->enq == (void *)ENQUEUE_TOP)
-		return (q->tail <= i ? (void *)QUEUE_EMPTY : (void *)QUEUE_TOP);
+	if (cell->enq == ENQUEUE_TOP)
+		return (q->tail <= i ? QUEUE_EMPTY : QUEUE_TOP);
 
 	req = cell->enq;
 	state = req->state;
@@ -257,11 +257,11 @@ static void *help_enq(pll_queue q,
 	union queue_reqstate s_val = { .s.pending = 0, .s.id = i };
 
 	if (state.s.id > i) {
-		if (cell->val == (void *)QUEUE_TOP && q->tail <= i)
-			return (void *)QUEUE_EMPTY;
+		if (cell->val == QUEUE_TOP && q->tail <= i)
+			return QUEUE_EMPTY;
 	} else if (try_to_claim_req(&req->state.u64, state.s.id, i)
 				|| (state.u64 == s_val.u64
-					&& cell->val == (void *)QUEUE_TOP)) {
+					&& cell->val == QUEUE_TOP)) {
 		enq_commit(q, cell, val, i);
 	}
 
@@ -274,12 +274,12 @@ static void *deq_fast(pll_queue q, struct queue_handle *h, uint64_t *cell_id)
 	struct queue_cell *cell = find_cell(&h->head, i);
 	void *val = help_enq(q, h, cell, i);
 
-	if (val != (void *)QUEUE_TOP
+	if (val != QUEUE_TOP
 			&& pll_cas(&cell->deq, DEQUEUE_BOTTOM, DEQUEUE_TOP))
 			return val;
 
 	*cell_id = i;
-	return (void *)QUEUE_TOP;
+	return QUEUE_TOP;
 }
 
 static void help_deq(pll_queue q,
@@ -309,9 +309,9 @@ static void help_deq(pll_queue q,
 
 			void * val = help_enq(q, h, cell, i);
 
-			if (val == (void *)QUEUE_EMPTY
-					|| (val != (void *)QUEUE_TOP
-						&& cell->deq == (void *)ENQUEUE_BOTTOM))
+			if (val == QUEUE_EMPTY
+					|| (val != QUEUE_TOP
+						&& cell->deq == ENQUEUE_BOTTOM))
 				cand = i;
 			else
 				state = req->state;
@@ -330,8 +330,8 @@ static void help_deq(pll_queue q,
 
 		cell = find_cell(&head, state.s.id);
 
-		if (cell->val == (void *)QUEUE_TOP
-				|| pll_cas(&cell->deq, (void *)DEQUEUE_BOTTOM, req)
+		if (cell->val == QUEUE_TOP
+				|| pll_cas(&cell->deq, DEQUEUE_BOTTOM, req)
 				|| cell->deq == req) {
 			union queue_reqstate s = { .s.pending = 0, .s.id = id };
 			pll_cas(&req->state.u64, state.u64, s.u64);
@@ -362,7 +362,7 @@ static void *deq_slow(pll_queue q, struct queue_handle *h, uint64_t cell_id)
 
 	advance_end_for_linearizability(&q->head, i + 1);
 
-	return (val == (void *)QUEUE_TOP ? (void *)QUEUE_EMPTY : val);
+	return (val == QUEUE_TOP ? QUEUE_EMPTY : val);
 }
 
 void *pll_dequeue(pll_queue q)
@@ -373,13 +373,13 @@ void *pll_dequeue(pll_queue q)
 
 	for (int p = PATIENCE; p >= 0; p--) {
 		val = deq_fast(q, h, &cell_id);
-		if (val != (void *)QUEUE_TOP)
+		if (val != QUEUE_TOP)
 			break;
 	}
 
-	if (val == (void *)QUEUE_TOP)
+	if (val == QUEUE_TOP)
 		val = deq_slow(q, h, cell_id);
-	else if (val != (void *)QUEUE_EMPTY) {
+	else if (val != QUEUE_EMPTY) {
 		help_deq(q, h, h->deq.peer);
 		h->deq.peer = h->deq.peer->next;
 	}
