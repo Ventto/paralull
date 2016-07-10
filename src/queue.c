@@ -322,7 +322,7 @@ static void *help_enq(pll_queue q,
 			h->enq.peer = peer->next;
 
 		if (cell->enq == ENQUEUE_BOTTOM)
-			pll_cas(&cell->enq, QUEUE_BOTTOM, QUEUE_TOP);
+			pll_cas(&cell->enq, ENQUEUE_BOTTOM, ENQUEUE_TOP);
 	}
 
 	if (cell->enq == ENQUEUE_TOP)
