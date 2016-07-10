@@ -213,9 +213,9 @@ void pll_enqueue(pll_queue q, void *val)
 
 	h->hzdp = h->tail;
 	for (int p = PATIENCE; p >= 0; --p)
-		if (enq_fast(q, val, h, &cell_id))
+		if (enq_fast(q, h, val, &cell_id))
 			return;
-	enq_slow(q, val, h, cell_id);
+	enq_slow(q, h, val, cell_id);
 	h->hzdp = NULL;
 }
 
