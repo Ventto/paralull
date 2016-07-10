@@ -29,7 +29,7 @@ Test(queue, axiom_ordering)
 
     void *dequeued[sizeof (items) / sizeof (void *)];
     for (size_t i = 0; i < sizeof (dequeued) / sizeof (void *); ++i)
-        pll_enqueue(queue, dequeued[i]);
+        dequeued[i] =  pll_dequeue(queue);
 
     cr_assert_arr_eq(items, dequeued, sizeof (items), "Queue does not respect ordering");
 
