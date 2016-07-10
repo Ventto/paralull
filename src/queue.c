@@ -209,13 +209,15 @@ void pll_enqueue(pll_queue q, void *val)
 	enq_slow(q, val, cell_id);
 }
 
-static void *help_enq(pll_queue q, struct queue_cell *cell, uint64_t i)
+static void *help_enq(pll_queue q,
+						struct queue_handle *h,
+						struct queue_cell *cell,
+						uint64_t i)
 {
 	if (!pll_cas(&cell->val, QUEUE_BOTTOM, QUEUE_TOP)
 			&& cell->val != (void *)QUEUE_TOP)
 		return cell->val;
 
-	struct queue_handle *h = NULL;
 	struct queue_handle *peer = NULL;
 	struct queue_enqreq *req = NULL;
 	union queue_reqstate state;
@@ -242,7 +244,7 @@ static void *help_enq(pll_queue q, struct queue_cell *cell, uint64_t i)
 			h->enq.peer = peer->next;
 
 		if (cell->enq == (void *)ENQUEUE_BOTTOM)
-			pll_cas(&cell->enq, QUEUE_EMPTY, QUEUE_TOP);
+			pll_cas(&cell->enq, QUEUE_BOTTOM, QUEUE_TOP);
 	}
 
 	if (cell->enq == (void *)ENQUEUE_TOP)
