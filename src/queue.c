@@ -115,9 +115,9 @@ void pll_queue_term(pll_queue q)
 	free(q);
 }
 
-static struct queue_handle *get_handle()
+static struct queue_handle *get_handle(pll_queue q)
 {
-	return NULL;
+	return pthread_getspecific(q->hndlk);
 }
 
 static void advance_end_for_linearizability(uint64_t *E, uint64_t cell_id)
@@ -165,8 +165,8 @@ static bool try_to_claim_req(uint64_t *state, uint64_t id, uint64_t cell_id)
 
 static void enq_slow(pll_queue q, void *val, uint64_t cell_id)
 {
-	struct queue_segment *tmp_tail = get_handle()->tail;
-	struct queue_enqreq *req = &get_handle()->enq.req;
+	struct queue_segment *tmp_tail = get_handle(q)->tail;
+	struct queue_enqreq *req = &get_handle(q)->enq.req;
 
 	req->val = val;
 	req->state = (union queue_reqstate) { .s.pending = 1, .s.id = cell_id };
@@ -182,7 +182,7 @@ static void enq_slow(pll_queue q, void *val, uint64_t cell_id)
 	} while (req->state.s.pending);
 
 	uint64_t id = req->state.s.id;
-	struct queue_cell *cell = find_cell(&get_handle()->tail, id);
+	struct queue_cell *cell = find_cell(&get_handle(q)->tail, id);
 
 	enq_commit(q, cell, val, id);
 }
@@ -190,7 +190,7 @@ static void enq_slow(pll_queue q, void *val, uint64_t cell_id)
 static inline bool enq_fast(pll_queue q, void *val, uint64_t *cell_id)
 {
 	uint64_t i = pll_faa(&q->tail, 1);
-	struct queue_cell *cell = find_cell(&get_handle()->tail, i);
+	struct queue_cell *cell = find_cell(&get_handle(q)->tail, i);
 
 	if (pll_cas(&cell->val, NULL, val))
 		return true;
@@ -222,7 +222,7 @@ static void *help_enq(pll_queue q, struct queue_cell *cell, uint64_t i)
 
 	if (cell->enq == (void *)ENQUEUE_BOTTOM) {
 		do {
-			h = get_handle();
+			h = get_handle(q);
 			peer = h->enq.peer;
 			req = &peer->enq.req;
 			state = req->state;
