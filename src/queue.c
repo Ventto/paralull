@@ -94,9 +94,8 @@ err:
 		free(queue->q);
 		free(queue);
 	}
-	if (rc) {
+	if (rc)
 		pthread_key_delete(key);
-	}
 	return NULL;
 }
 
@@ -164,10 +163,13 @@ static bool try_to_claim_req(uint64_t *state, uint64_t id, uint64_t cell_id)
 	return pll_cas(state, s_val1.u64, s_val2.u64);
 }
 
-static void enq_slow(pll_queue q, void *val, uint64_t cell_id)
+static void enq_slow(pll_queue q,
+						struct queue_handle *h,
+						void *val,
+						uint64_t cell_id)
 {
-	struct queue_segment *tmp_tail = get_handle(q)->tail;
-	struct queue_enqreq *req = &get_handle(q)->enq.req;
+	struct queue_segment *tmp_tail = h->tail;
+	struct queue_enqreq *req = &h->enq.req;
 
 	req->val = val;
 	req->state = (union queue_reqstate) { .s.pending = 1, .s.id = cell_id };
@@ -183,15 +185,18 @@ static void enq_slow(pll_queue q, void *val, uint64_t cell_id)
 	} while (req->state.s.pending);
 
 	uint64_t id = req->state.s.id;
-	struct queue_cell *cell = find_cell(&get_handle(q)->tail, id);
+	struct queue_cell *cell = find_cell(&h->tail, id);
 
 	enq_commit(q, cell, val, id);
 }
 
-static inline bool enq_fast(pll_queue q, void *val, uint64_t *cell_id)
+static inline bool enq_fast(pll_queue q,
+								struct queue_handle *h,
+								void *val,
+								uint64_t *cell_id)
 {
 	uint64_t i = pll_faa(&q->tail, 1);
-	struct queue_cell *cell = find_cell(&get_handle(q)->tail, i);
+	struct queue_cell *cell = find_cell(&h->tail, i);
 
 	if (pll_cas(&cell->val, NULL, val))
 		return true;
@@ -203,11 +208,12 @@ static inline bool enq_fast(pll_queue q, void *val, uint64_t *cell_id)
 void pll_enqueue(pll_queue q, void *val)
 {
 	uint64_t cell_id;
+	struct queue_handle *h = get_handle(q);
 
 	for (int p = PATIENCE; p >= 0; --p)
-		if (enq_fast(q, val, &cell_id))
+		if (enq_fast(q, val, h, &cell_id))
 			return;
-	enq_slow(q, val, cell_id);
+	enq_slow(q, val, h, cell_id);
 }
 
 static void *help_enq(pll_queue q,
@@ -261,8 +267,7 @@ static void *help_enq(pll_queue q,
 		if (cell->val == QUEUE_TOP && q->tail <= i)
 			return QUEUE_EMPTY;
 	} else if (try_to_claim_req(&req->state.u64, state.s.id, i)
-				|| (state.u64 == s_val.u64
-					&& cell->val == QUEUE_TOP)) {
+				|| (state.u64 == s_val.u64 && cell->val == QUEUE_TOP)) {
 		enq_commit(q, cell, val, i);
 	}
 
@@ -275,9 +280,8 @@ static void *deq_fast(pll_queue q, struct queue_handle *h, uint64_t *cell_id)
 	struct queue_cell *cell = find_cell(&h->head, i);
 	void *val = help_enq(q, h, cell, i);
 
-	if (val != QUEUE_TOP
-			&& pll_cas(&cell->deq, DEQUEUE_BOTTOM, DEQUEUE_TOP))
-			return val;
+	if (val != QUEUE_TOP && pll_cas(&cell->deq, DEQUEUE_BOTTOM, DEQUEUE_TOP))
+		return val;
 
 	*cell_id = i;
 	return QUEUE_TOP;
@@ -305,10 +309,11 @@ static void help_deq(pll_queue q,
 	while (true) {
 		struct queue_cell *cell = NULL;
 
-		for (struct queue_segment *c_seg = head; !cand && state.s.id == prior;) {
+		for (struct queue_segment *c_seg = head;
+				!cand && state.s.id == prior;) {
 			cell = find_cell(&c_seg, ++i);
 
-			void * val = help_enq(q, h, cell, i);
+			void *val = help_enq(q, h, cell, i);
 
 			if (val == QUEUE_EMPTY
 					|| (val != QUEUE_TOP
@@ -335,6 +340,7 @@ static void help_deq(pll_queue q,
 				|| pll_cas(&cell->deq, DEQUEUE_BOTTOM, req)
 				|| cell->deq == req) {
 			union queue_reqstate s = { .s.pending = 0, .s.id = id };
+
 			pll_cas(&req->state.u64, state.u64, s.u64);
 			return;
 		}
