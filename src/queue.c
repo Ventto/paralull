@@ -36,7 +36,7 @@ static struct queue_segment *new_segment(uint64_t id)
 	return seg;
 }
 
-static int handle_init(struct pll_queue *q)
+static int handle_init(struct pll_queue *q, struct queue_handle **out)
 {
 	struct queue_handle *h = malloc(sizeof (*h));
 	if (!h)
@@ -63,6 +63,8 @@ static int handle_init(struct pll_queue *q)
 				break;
 		}
 	}
+	if (out)
+		*out = h;
 	return 0;
 err:
 	if (h)
@@ -87,7 +89,7 @@ pll_queue pll_queue_init(void)
 		.hndlk = key,
 	};
 
-	if (handle_init(queue) < 0)
+	if (handle_init(queue, NULL) < 0)
 		goto err;
 
 	return queue;
@@ -120,7 +122,12 @@ void pll_queue_term(pll_queue q)
 
 static struct queue_handle *get_handle(pll_queue q)
 {
-	return pthread_getspecific(q->hndlk);
+	struct queue_handle *h = pthread_getspecific(q->hndlk);
+	if (!h) {
+		if (handle_init(q, &h) < 0)
+			abort();
+	}
+	return h;
 }
 
 static void advance_end_for_linearizability(uint64_t *E, uint64_t cell_id)
