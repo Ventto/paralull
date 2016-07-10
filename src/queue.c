@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <pthread.h>
 #include <stdint.h>
+#include <stdint.h>
 
 #include "atomic.h"
 #include "paralull.h"
@@ -42,7 +43,7 @@ static int handle_init(struct pll_queue *q)
 
 	*h = (struct queue_handle) {
 		.tail = q->q,
-		.head = q->q,
+	.head = q->q,
 		.next = h,
 	};
 
@@ -367,7 +368,7 @@ static void *deq_slow(pll_queue q, struct queue_handle *h, uint64_t cell_id)
 
 void *pll_dequeue(pll_queue q)
 {
-	struct queue_handle *h = get_handle();
+	struct queue_handle *h = get_handle(q);
 	void *val = NULL;
 	uint64_t cell_id;
 
