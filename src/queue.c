@@ -71,7 +71,7 @@ err:
 
 pll_queue pll_queue_init(void)
 {
-	int rc;
+	int rc = 0;
 
 	pll_queue queue = malloc(sizeof (*queue));
 	if (!queue)
