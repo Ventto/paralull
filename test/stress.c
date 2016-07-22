@@ -2,10 +2,10 @@
 #include <paralull.h>
 #include <pthread.h>
 
-#define NB_THREADS 100
-#define NB_ITEMS 100000
+#define NB_THREADS 4
+#define NB_ITEMS 1000000
 
-static size_t counter;
+static volatile size_t counter;
 static char marks[NB_ITEMS];
 
 static void *worker_enq(void *ctx)
