@@ -3,8 +3,13 @@
 
 # include <stdbool.h>
 
+# ifdef __cplusplus
+struct _pll_queue;
+typedef _pll_queue *pll_queue;
+# else
 struct pll_queue;
 typedef struct pll_queue *pll_queue;
+# endif
 
 pll_queue pll_queue_init(void);
 void pll_queue_term(pll_queue q);

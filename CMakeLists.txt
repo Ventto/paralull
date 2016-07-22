@@ -1,12 +1,15 @@
 cmake_minimum_required (VERSION 2.8)
 
-project (Paralull C)
+project (Paralull C CXX)
 
 set (MODULE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/.cmake/Modules")
 set (CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${MODULE_DIR})
 
 set (CMAKE_C_FLAGS_DEFAULT "${CMAKE_C_FLAGS}")
 set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=c99 -Wall -Wextra -pedantic -pthread")
+
+set (CMAKE_CXX_FLAGS_DEFAULT "${CMAKE_CXX_FLAGS}")
+set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -Wall -Wextra -pedantic -pthread")
 
 include_directories(include src)
 add_subdirectory (src)
@@ -18,3 +21,4 @@ target_link_libraries (paralull pthread)
 
 enable_testing()
 add_subdirectory(test)
+add_subdirectory(bench)
