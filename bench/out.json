@@ -1,0 +1,203 @@
+var output = {
+  "context": {
+    "date": "2016-07-22 18:05:47",
+    "num_cpus": 4,
+    "mhz_per_cpu": 2598,
+    "cpu_scaling_enabled": true,
+    "library_build_type": "release"
+  },
+  "benchmarks": [
+    {
+      "name": "libflds_enqueue/threads:1",
+      "iterations": 3333333,
+      "real_time": 204,
+      "cpu_time": 204
+    },
+    {
+      "name": "libflds_enqueue/threads:2",
+      "iterations": 2333334,
+      "real_time": 193,
+      "cpu_time": 356
+    },
+    {
+      "name": "libflds_enqueue/threads:4",
+      "iterations": 1866668,
+      "real_time": 153,
+      "cpu_time": 504
+    },
+    {
+      "name": "libflds_enqueue/threads:8",
+      "iterations": 1365856,
+      "real_time": 152,
+      "cpu_time": 534
+    },
+    {
+      "name": "libflds_enqueue/threads:16",
+      "iterations": 1400000,
+      "real_time": 183,
+      "cpu_time": 529
+    },
+    {
+      "name": "libflds_enqueue/threads:32",
+      "iterations": 1400000,
+      "real_time": 194,
+      "cpu_time": 529
+    },
+    {
+      "name": "libflds_enqueue/threads:64",
+      "iterations": 1400000,
+      "real_time": 153,
+      "cpu_time": 536
+    },
+    {
+      "name": "libflds_enqueue/threads:128",
+      "iterations": 1280000,
+      "real_time": 152,
+      "cpu_time": 508
+    },
+    {
+      "name": "libflds_mixed/threads:1",
+      "iterations": 2500000,
+      "real_time": 279,
+      "cpu_time": 268
+    },
+    {
+      "name": "libflds_mixed/threads:2",
+      "iterations": 1272728,
+      "real_time": 265,
+      "cpu_time": 503
+    },
+    {
+      "name": "libflds_mixed/threads:4",
+      "iterations": 1076924,
+      "real_time": 191,
+      "cpu_time": 631
+    },
+    {
+      "name": "libflds_mixed/threads:8",
+      "iterations": 1120000,
+      "real_time": 187,
+      "cpu_time": 652
+    },
+    {
+      "name": "libflds_mixed/threads:16",
+      "iterations": 1018176,
+      "real_time": 190,
+      "cpu_time": 629
+    },
+    {
+      "name": "libflds_mixed/threads:32",
+      "iterations": 1066656,
+      "real_time": 185,
+      "cpu_time": 656
+    },
+    {
+      "name": "libflds_mixed/threads:64",
+      "iterations": 1066688,
+      "real_time": 183,
+      "cpu_time": 656
+    },
+    {
+      "name": "libflds_mixed/threads:128",
+      "iterations": 1120000,
+      "real_time": 186,
+      "cpu_time": 643
+    },
+    {
+      "name": "paralull_enqueue/threads:1",
+      "iterations": 11666667,
+      "real_time": 65,
+      "cpu_time": 64
+    },
+    {
+      "name": "paralull_enqueue/threads:2",
+      "iterations": 5000000,
+      "real_time": 78,
+      "cpu_time": 152
+    },
+    {
+      "name": "paralull_enqueue/threads:4",
+      "iterations": 2800000,
+      "real_time": 80,
+      "cpu_time": 271
+    },
+    {
+      "name": "paralull_enqueue/threads:8",
+      "iterations": 2947368,
+      "real_time": 80,
+      "cpu_time": 278
+    },
+    {
+      "name": "paralull_enqueue/threads:16",
+      "iterations": 2947376,
+      "real_time": 79,
+      "cpu_time": 271
+    },
+    {
+      "name": "paralull_enqueue/threads:32",
+      "iterations": 2519584,
+      "real_time": 80,
+      "cpu_time": 286
+    },
+    {
+      "name": "paralull_enqueue/threads:64",
+      "iterations": 3200000,
+      "real_time": 77,
+      "cpu_time": 231
+    },
+    {
+      "name": "paralull_enqueue/threads:128",
+      "iterations": 2986624,
+      "real_time": 78,
+      "cpu_time": 265
+    },
+    {
+      "name": "paralull_mixed/threads:1",
+      "iterations": 5833333,
+      "real_time": 128,
+      "cpu_time": 127
+    },
+    {
+      "name": "paralull_mixed/threads:2",
+      "iterations": 2000000,
+      "real_time": 176,
+      "cpu_time": 350
+    },
+    {
+      "name": "paralull_mixed/threads:4",
+      "iterations": 1333332,
+      "real_time": 160,
+      "cpu_time": 518
+    },
+    {
+      "name": "paralull_mixed/threads:8",
+      "iterations": 1647056,
+      "real_time": 148,
+      "cpu_time": 516
+    },
+    {
+      "name": "paralull_mixed/threads:16",
+      "iterations": 1600000,
+      "real_time": 144,
+      "cpu_time": 506
+    },
+    {
+      "name": "paralull_mixed/threads:32",
+      "iterations": 1400000,
+      "real_time": 142,
+      "cpu_time": 493
+    },
+    {
+      "name": "paralull_mixed/threads:64",
+      "iterations": 1544832,
+      "real_time": 139,
+      "cpu_time": 473
+    },
+    {
+      "name": "paralull_mixed/threads:128",
+      "iterations": 1280000,
+      "real_time": 143,
+      "cpu_time": 461
+    }
+  ]
+}

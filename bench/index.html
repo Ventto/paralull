@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<title>Benchmarks</title>
+	<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+	
+	 <script src="amcharts/amcharts.js" type="text/javascript"></script>
+        <script src="amcharts/serial.js" type="text/javascript"></script>
+        <script type="text/javascript" src="out.json"></script>
+        <script>
+           var chart;
+
+           var str = JSON.stringify(output);
+           str = str.replace(/paralull_/g, '');
+           str = str.replace(/liblfds_/g, '');
+           str = str.replace(/libflds_/g, '');
+           str = str.replace(/enqueue/g, 'enq');
+           str = str.replace(/mixed/g, 'mix');
+           console.log(str);
+           output = JSON.parse(str);
+
+           Object.size = function(obj) {
+             var size = 0, key;
+             for (key in obj) {
+               if (obj.hasOwnProperty(key)) size++;
+             }
+             return size;
+           };
+           var sz = Object.size(output['benchmarks']);
+           for (i = sz / 2; i < sz; i += 1) {
+             output['benchmarks'][i - sz / 2]['iterations2'] = output['benchmarks'][i]['iterations'];
+             delete output['benchmarks'][i];
+           }
+           output['benchmarks'].length = sz / 2;
+
+           var chartData = output["benchmarks"]
+
+           AmCharts.ready(function () {
+
+               // SERIAL CHART
+               chart = new AmCharts.AmSerialChart();
+
+               chart.dataProvider = chartData;
+               chart.categoryField = "name";
+
+               // listen for "dataUpdated" event (fired when chart is inited) and call zoomChart method when it happens
+               chart.addListener("dataUpdated", zoomChart);
+
+               chart.synchronizeGrid = true; // this makes all axes grid to be at the same intervals
+
+               // AXES
+               // category
+               var categoryAxis = chart.categoryAxis;
+               categoryAxis.twoLineMode = true;
+               categoryAxis.gridAlpha = 0.07;
+               categoryAxis.axisColor = "#DADADA";
+
+               // first value axis (on the left)
+               var valueAxis1 = new AmCharts.ValueAxis();
+               valueAxis1.axisColor = "#FF4400";
+               valueAxis1.axisThickness = 2;
+               chart.addValueAxis(valueAxis1);
+
+               // GRAPHS
+               // first graph
+               var graph1 = new AmCharts.AmGraph();
+               graph1.valueAxis = valueAxis1;
+               graph1.title = "Liblfds";
+               graph1.valueField = "iterations";
+               graph1.bullet = "round";
+               graph1.hideBulletsCount = 30;
+               graph1.bulletBorderThickness = 1;
+               chart.addGraph(graph1);
+
+               // second graph
+               var graph2 = new AmCharts.AmGraph();
+               graph1.valueAxis = valueAxis1; // we have to indicate which value axis should be used
+               graph2.title = "Paralull";
+               graph2.valueField = "iterations2";
+               graph2.bullet = "round";
+               graph2.hideBulletsCount = 30;
+               graph2.bulletBorderThickness = 1;
+               chart.addGraph(graph2);
+
+               // CURSOR
+               var chartCursor = new AmCharts.ChartCursor();
+               chartCursor.cursorAlpha = 0.1;
+               chartCursor.fullWidth = true;
+               chartCursor.valueLineBalloonEnabled = true;
+               chart.addChartCursor(chartCursor);
+
+               // LEGEND
+               var legend = new AmCharts.AmLegend();
+               legend.marginLeft = 110;
+               legend.useGraphSettings = true;
+               chart.addLegend(legend);
+
+               // WRITE
+               chart.write("chartdiv");
+           });
+
+           // this method is called when chart is first inited as we listen for "dataUpdated" event
+           function zoomChart() {
+               // different zoom methods can be used - zoomToIndexes, zoomToDates, zoomToCategoryValues
+               chart.zoomToIndexes(chartData.length - 40, chartData.length - 1);
+           }
+        </script>
+    </head>
+    <body><div id="chartdiv" style="width: 100%; height: 400px;"></div></body>
+</html>
