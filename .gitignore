@@ -1,11 +1,2 @@
-*
-!*/
-
-!src/*.c
-!src/*.h
-!.cmake/
-!CMakeLists.txt
-!*.rst
-!*.md
-
+*.swp
 config.h
